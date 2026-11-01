@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="戰術板">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1e3a1e">
+  <title>五人足球戰術板</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <h1>五人足球戰術板</h1>
+          <p id="status" aria-live="polite">黃實線：畫跑動路線</p>
+        </div>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><i class="dot dot-red"></i>紅隊</span>
+        <span><i class="dot dot-blue"></i>藍隊</span>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="pitch is-drawing" id="pitch" data-orientation="portrait" aria-label="五人足球場">
+        <!-- 底層：球場 -->
+        <svg class="markings" viewBox="-36 -22 472 244" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#d7b57a"/>
+              <stop offset="55%" stop-color="#c19655"/>
+              <stop offset="100%" stop-color="#8f6738"/>
+            </linearGradient>
+            <pattern id="mow" width="40" height="200" patternUnits="userSpaceOnUse">
+              <rect width="20" height="200" fill="#1e9450"/>
+              <rect x="20" width="20" height="200" fill="#167c42"/>
+            </pattern>
+            <radialGradient id="shade" cx="50%" cy="45%" r="72%">
+              <stop offset="0%" stop-color="rgb(255,255,255)" stop-opacity="0.1"/>
+              <stop offset="68%" stop-color="rgb(0,0,0)" stop-opacity="0"/>
+              <stop offset="100%" stop-color="rgb(0,0,0)" stop-opacity="0.3"/>
+            </radialGradient>
+          </defs>
+
+          <rect x="-36" y="-22" width="472" height="244" rx="14" fill="#241910"/>
+          <rect x="-26" y="-14" width="452" height="228" rx="8" fill="url(#floor)"/>
+          <rect x="0" y="0" width="400" height="200" fill="url(#mow)"/>
+          <rect x="0" y="0" width="400" height="200" fill="url(#shade)"/>
+
+          <!-- 球門：左側紅隊、右側藍隊。深 1.4m、寬 3m -->
+          <g fill="rgba(255,255,255,0.14)" stroke="#f7f4ea" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+            <rect x="-14" y="85" width="14" height="30"/>
+            <rect x="400" y="85" width="14" height="30"/>
+          </g>
+          <g fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1" vector-effect="non-scaling-stroke">
+            <path d="M-10 85 V115 M-6 85 V115 M-14 93 H0 M-14 101 H0 M-14 109 H0"/>
+            <path d="M410 85 V115 M406 85 V115 M400 93 H414 M400 101 H414 M400 109 H414"/>
+          </g>
+          <line x1="-14" y1="85" x2="-14" y2="115" stroke="#ff5d5d" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          <line x1="414" y1="85" x2="414" y2="115" stroke="#5aa2ff" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+
+          <!-- 禁區淡填，不描出穿越球門的直線 -->
+          <path d="M0 25 A60 60 0 0 1 60 85 L60 115 A60 60 0 0 1 0 175 Z" fill="rgba(255,255,255,0.05)"/>
+          <path d="M400 25 A60 60 0 0 0 340 85 L340 115 A60 60 0 0 0 400 175 Z" fill="rgba(255,255,255,0.05)"/>
+
+          <g fill="none" stroke="#f7f4ea" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+            <line x1="0" y1="0" x2="400" y2="0"/>
+            <line x1="0" y1="200" x2="400" y2="200"/>
+            <line x1="0" y1="0" x2="0" y2="85"/>
+            <line x1="0" y1="115" x2="0" y2="200"/>
+            <line x1="400" y1="0" x2="400" y2="85"/>
+            <line x1="400" y1="115" x2="400" y2="200"/>
+            <line x1="200" y1="0" x2="200" y2="200"/>
+            <circle cx="200" cy="100" r="30"/>
+            <path d="M0 25 A60 60 0 0 1 60 85 L60 115 A60 60 0 0 1 0 175"/>
+            <path d="M400 25 A60 60 0 0 0 340 85 L340 115 A60 60 0 0 0 400 175"/>
+            <path d="M6 0 A6 6 0 0 1 0 6"/>
+            <path d="M394 0 A6 6 0 0 0 400 6"/>
+            <path d="M0 194 A6 6 0 0 1 6 200"/>
+            <path d="M394 200 A6 6 0 0 1 400 194"/>
+          </g>
+
+          <g fill="#fff" stroke="#146b38" stroke-width="1.2" vector-effect="non-scaling-stroke">
+            <circle cx="200" cy="100" r="3.2"/>
+            <circle cx="60" cy="100" r="3.2"/>
+            <circle cx="340" cy="100" r="3.2"/>
+            <circle cx="100" cy="100" r="2.6"/>
+            <circle cx="300" cy="100" r="2.6"/>
+          </g>
+
+          <!-- 替補區：中線兩側各 5m，位於同一條邊線外 -->
+          <g stroke="#f3d48a" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke">
+            <line x1="100" y1="206" x2="150" y2="206"/>
+            <line x1="250" y1="206" x2="300" y2="206"/>
+            <line x1="100" y1="200" x2="100" y2="211"/>
+            <line x1="150" y1="200" x2="150" y2="211"/>
+            <line x1="250" y1="200" x2="250" y2="211"/>
+            <line x1="300" y1="200" x2="300" y2="211"/>
+          </g>
+        </svg>
+
+        <!-- 中層：戰術線 -->
+        <canvas class="draw-layer" id="draw-layer"></canvas>
+
+        <!-- 頂層：可拖曳棋子。pointer-events 只開在棋子上，空白處才畫得到線 -->
+        <div class="tokens" id="tokens"></div>
+      </div>
+    </main>
+
+    <footer class="action-bar">
+      <div class="tools" role="toolbar" aria-label="戰術工具">
+        <button type="button" class="tool is-active" data-tool="run-solid" aria-pressed="true" aria-label="黃色跑動實線">
+          <span class="swatch swatch-yellow" aria-hidden="true"></span>
+          <span class="tool-label">黃實線</span>
+        </button>
+        <button type="button" class="tool" data-tool="run-dashed" aria-pressed="false" aria-label="黃色跑動虛線">
+          <span class="swatch swatch-yellow swatch-dashed" aria-hidden="true"></span>
+          <span class="tool-label">黃虛線</span>
+        </button>
+        <button type="button" class="tool" data-tool="pass-solid" aria-pressed="false" aria-label="白色傳球實線">
+          <span class="swatch swatch-white" aria-hidden="true"></span>
+          <span class="tool-label">白實線</span>
+        </button>
+        <button type="button" class="tool" data-tool="pass-arrow" aria-pressed="false" aria-label="白色傳球箭頭">
+          <span class="swatch swatch-white swatch-arrow" aria-hidden="true"></span>
+          <span class="tool-label">白箭頭</span>
+        </button>
+        <button type="button" class="tool tool-action" id="clear-lines" aria-label="清除線條">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 16.5c2.2-2.8 3.8-2.8 6 0s3.8 2.8 6 0 3.6-2.6 4.2-.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M8 7.5 16.5 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <span class="tool-label">清除線條</span>
+        </button>
+        <button type="button" class="tool tool-action" id="reset-formation" aria-label="重設陣型">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M19 4.5V9h-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="tool-label">重設陣型</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

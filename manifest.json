@@ -1,0 +1,26 @@
+{
+  "name": "五人足球戰術板",
+  "short_name": "戰術板",
+  "description": "可離線使用的五人足球戰術板",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1e3a1e",
+  "theme_color": "#1e3a1e",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
