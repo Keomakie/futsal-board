@@ -28,19 +28,36 @@
       </g>
     </svg>`;
 
-  const FORMATION = [
-    { id: "red-1", team: "red", num: "1", name: "紅隊守門員", u: 0.08, v: 0.5 },
-    { id: "red-2", team: "red", num: "2", name: "紅隊左後衛", u: 0.26, v: 0.3 },
-    { id: "red-3", team: "red", num: "3", name: "紅隊右後衛", u: 0.26, v: 0.7 },
-    { id: "red-4", team: "red", num: "4", name: "紅隊左前鋒", u: 0.42, v: 0.3 },
-    { id: "red-5", team: "red", num: "5", name: "紅隊右前鋒", u: 0.42, v: 0.7 },
-    { id: "blue-1", team: "blue", num: "1", name: "藍隊守門員", u: 0.92, v: 0.5 },
-    { id: "blue-2", team: "blue", num: "2", name: "藍隊左後衛", u: 0.74, v: 0.7 },
-    { id: "blue-3", team: "blue", num: "3", name: "藍隊右後衛", u: 0.74, v: 0.3 },
-    { id: "blue-4", team: "blue", num: "4", name: "藍隊左前鋒", u: 0.58, v: 0.7 },
-    { id: "blue-5", team: "blue", num: "5", name: "藍隊右前鋒", u: 0.58, v: 0.3 },
-    { id: "ball", team: "ball", num: "", name: "足球", u: 0.5, v: 0.5 }
-  ];
+  const FORMATIONS = {
+    "2-2": [
+      { num: "1", role: "守門員", u: 0.08, v: 0.5 },
+      { num: "2", role: "左後衛", u: 0.26, v: 0.3 },
+      { num: "3", role: "右後衛", u: 0.26, v: 0.7 },
+      { num: "4", role: "左前鋒", u: 0.42, v: 0.3 },
+      { num: "5", role: "右前鋒", u: 0.42, v: 0.7 }
+    ],
+    "1-2-1": [
+      { num: "1", role: "守門員", u: 0.08, v: 0.5 },
+      { num: "2", role: "後腰", u: 0.22, v: 0.5 },
+      { num: "3", role: "左翼", u: 0.34, v: 0.24 },
+      { num: "4", role: "右翼", u: 0.34, v: 0.76 },
+      { num: "5", role: "前鋒", u: 0.42, v: 0.5 }
+    ],
+    "2-1-1": [
+      { num: "1", role: "守門員", u: 0.08, v: 0.5 },
+      { num: "2", role: "左後衛", u: 0.22, v: 0.28 },
+      { num: "3", role: "右後衛", u: 0.22, v: 0.72 },
+      { num: "4", role: "中場", u: 0.32, v: 0.5 },
+      { num: "5", role: "前鋒", u: 0.42, v: 0.5 }
+    ],
+    "3-0-1": [
+      { num: "1", role: "守門員", u: 0.08, v: 0.5 },
+      { num: "2", role: "左後衛", u: 0.26, v: 0.22 },
+      { num: "3", role: "中後衛", u: 0.24, v: 0.5 },
+      { num: "4", role: "右後衛", u: 0.26, v: 0.78 },
+      { num: "5", role: "前鋒", u: 0.42, v: 0.5 }
+    ]
+  };
 
   const pitch = document.getElementById("pitch");
   const markings = pitch.querySelector(".markings");
@@ -50,7 +67,8 @@
   const statusEl = document.getElementById("status");
   const ctx = canvas.getContext("2d");
 
-  const pieces = FORMATION.map((item) => ({
+  let formationId = "2-2";
+  const pieces = slotsFor(formationId).map((item) => ({
     ...item,
     homeU: item.u,
     homeV: item.v,
@@ -80,7 +98,10 @@
 
   pieces.forEach(createToken);
   loadState();
+  applyHomes(formationId);
   bindTools();
+  markFormationButtons();
+  syncUndo();
   bindPointer();
   registerServiceWorker();
   layout();
@@ -128,7 +149,94 @@
     piece.el = el;
   }
 
+  function slotsFor(id) {
+    const shape = FORMATIONS[id] || FORMATIONS["2-2"];
+    const red = shape.map((slot) => ({
+      id: `red-${slot.num}`,
+      team: "red",
+      num: slot.num,
+      name: `紅隊${slot.role}`,
+      u: slot.u,
+      v: slot.v
+    }));
+    const blue = shape.map((slot) => ({
+      id: `blue-${slot.num}`,
+      team: "blue",
+      num: slot.num,
+      name: `藍隊${slot.role}`,
+      u: round4(1 - slot.u),
+      v: round4(1 - slot.v)
+    }));
+    return red.concat(blue, [{ id: "ball", team: "ball", num: "", name: "足球", u: 0.5, v: 0.5 }]);
+  }
+
+  function applyHomes(id) {
+    slotsFor(id).forEach((slot) => {
+      const piece = pieces.find((item) => item.id === slot.id);
+      if (!piece) return;
+      piece.homeU = slot.u;
+      piece.homeV = slot.v;
+      piece.name = slot.name;
+      if (piece.el) piece.el.setAttribute("aria-label", `${slot.name}，可拖曳`);
+    });
+  }
+
+  function markFormationButtons() {
+    document.querySelectorAll("[data-formation]").forEach((button) => {
+      const on = button.dataset.formation === formationId;
+      button.classList.toggle("is-active", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    const resetButton = document.getElementById("reset-formation");
+    if (resetButton) resetButton.setAttribute("aria-label", `重設為 ${formationId} 並清除線條`);
+  }
+
+  function applyFormation(id) {
+    if (!FORMATIONS[id]) return;
+    if (dragging) {
+      dragging.el.classList.remove("is-dragging");
+      dragging = null;
+    }
+    formationId = id;
+    applyHomes(id);
+    pieces.forEach((piece) => {
+      if (piece.team === "ball") return;
+      piece.u = piece.homeU;
+      piece.v = piece.homeV;
+      piece.el.classList.remove("is-dragging");
+      place(piece);
+    });
+    markFormationButtons();
+    saveState();
+    flash(`已套用 ${id}，路線保留`);
+  }
+
+  function syncUndo() {
+    const button = document.getElementById("undo-line");
+    if (!button) return;
+    const empty = strokes.filter((stroke) => stroke !== currentStroke).length === 0;
+    button.disabled = empty;
+  }
+
+  function undoLine() {
+    let index = strokes.length - 1;
+    if (strokes[index] === currentStroke) index -= 1;
+    if (index < 0) {
+      flash("沒有可還原的線條");
+      return;
+    }
+    strokes.splice(index, 1);
+    redraw();
+    saveState();
+    syncUndo();
+    flash("已還原上一筆");
+  }
+
   function bindTools() {
+    document.querySelectorAll("[data-formation]").forEach((button) => {
+      button.addEventListener("click", () => applyFormation(button.dataset.formation));
+    });
+
     document.querySelectorAll("[data-tool]").forEach((button) => {
       button.addEventListener("click", () => {
         toolId = button.dataset.tool;
@@ -141,12 +249,15 @@
       });
     });
 
+    document.getElementById("undo-line").addEventListener("click", undoLine);
+
     document.getElementById("clear-lines").addEventListener("click", () => {
       strokes = [];
       currentStroke = null;
       drawing = false;
       redraw();
       saveState();
+      syncUndo();
       flash("線條已清除");
     });
 
@@ -166,7 +277,8 @@
       drawing = false;
       redraw();
       saveState();
-      flash("陣型已重設");
+      syncUndo();
+      flash(`已回到 ${formationId}，線條已清除`);
     });
   }
 
@@ -289,6 +401,7 @@
     activeTouchId = null;
     if (drew) redraw();
     if (drew || moved) saveState();
+    if (drew) syncUndo();
   }
 
   function findTouch(list, id) {
@@ -589,6 +702,7 @@
       const raw = localStorage.getItem(STORE_KEY);
       if (!raw) return;
       const data = JSON.parse(raw);
+      if (data.formation && FORMATIONS[data.formation]) formationId = data.formation;
       if (Array.isArray(data.pieces)) {
         data.pieces.forEach((saved) => {
           const piece = pieces.find((item) => item.id === saved.id);
@@ -613,6 +727,7 @@
   function saveState() {
     try {
       const data = {
+        formation: formationId,
         pieces: pieces.map((piece) => ({ id: piece.id, u: round4(piece.u), v: round4(piece.v) })),
         strokes: strokes.filter((stroke) => stroke !== currentStroke).map((stroke) => ({
           color: stroke.color,

@@ -1,4 +1,4 @@
-const CACHE = "futsal-v3";
+const CACHE = "futsal-v4";
 const ASSETS = ["./", "./index.html", "./style.css", "./app.js", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {
