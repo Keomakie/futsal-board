@@ -117,11 +117,21 @@
     </main>
 
     <footer class="action-bar">
-      <div class="formations" role="toolbar" aria-label="預設陣型">
-        <button type="button" class="chip is-active" data-formation="2-2" aria-pressed="true" aria-label="套用 2-2 陣型，保留路線">2-2</button>
-        <button type="button" class="chip" data-formation="1-2-1" aria-pressed="false" aria-label="套用 1-2-1 陣型，保留路線">1-2-1</button>
-        <button type="button" class="chip" data-formation="2-1-1" aria-pressed="false" aria-label="套用 2-1-1 陣型，保留路線">2-1-1</button>
-        <button type="button" class="chip" data-formation="3-0-1" aria-pressed="false" aria-label="套用 3-0-1 陣型，保留路線">3-0-1</button>
+      <div class="formations">
+        <div class="formation-row" role="toolbar" aria-label="紅隊陣型">
+          <span class="side-tag side-tag-red" aria-hidden="true">紅</span>
+          <button type="button" class="chip is-active" data-team="red" data-formation="2-2" aria-pressed="true" aria-label="套用紅隊 2-2，保留路線">2-2</button>
+          <button type="button" class="chip" data-team="red" data-formation="1-2-1" aria-pressed="false" aria-label="套用紅隊 1-2-1，保留路線">1-2-1</button>
+          <button type="button" class="chip" data-team="red" data-formation="2-1-1" aria-pressed="false" aria-label="套用紅隊 2-1-1，保留路線">2-1-1</button>
+          <button type="button" class="chip" data-team="red" data-formation="3-0-1" aria-pressed="false" aria-label="套用紅隊 3-0-1，保留路線">3-0-1</button>
+        </div>
+        <div class="formation-row" role="toolbar" aria-label="藍隊陣型">
+          <span class="side-tag side-tag-blue" aria-hidden="true">藍</span>
+          <button type="button" class="chip is-active" data-team="blue" data-formation="2-2" aria-pressed="true" aria-label="套用藍隊 2-2，保留路線">2-2</button>
+          <button type="button" class="chip" data-team="blue" data-formation="1-2-1" aria-pressed="false" aria-label="套用藍隊 1-2-1，保留路線">1-2-1</button>
+          <button type="button" class="chip" data-team="blue" data-formation="2-1-1" aria-pressed="false" aria-label="套用藍隊 2-1-1，保留路線">2-1-1</button>
+          <button type="button" class="chip" data-team="blue" data-formation="3-0-1" aria-pressed="false" aria-label="套用藍隊 3-0-1，保留路線">3-0-1</button>
+        </div>
       </div>
       <div class="tools" role="toolbar" aria-label="戰術工具">
         <button type="button" class="tool is-active" data-tool="run-solid" aria-pressed="true" aria-label="黃色跑動實線">

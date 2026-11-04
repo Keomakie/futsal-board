@@ -274,29 +274,54 @@ h1 {
 
 .formations {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 8px;
 }
 
+.formation-row {
+  display: grid;
+  grid-template-columns: 28px repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  align-items: center;
+}
+
+.side-tag {
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.side-tag-red { background: #e23b3b; color: #fff; }
+.side-tag-blue { background: #2f6fed; color: #fff; }
+
 .chip {
-  min-height: 40px;
+  min-height: 34px;
   border: 0;
   border-radius: 999px;
   background: #24302a;
   color: #d7e6dc;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 750;
   letter-spacing: 0.02em;
   touch-action: manipulation;
   cursor: pointer;
 }
 
-.chip.is-active {
-  background: #1d4a34;
-  color: #f4fff7;
-  box-shadow: inset 0 0 0 2px #8ddeaf;
+.chip.is-active[data-team="red"] {
+  background: #5a2424;
+  color: #fff5f5;
+  box-shadow: inset 0 0 0 2px #ff8d8d;
+}
+
+.chip.is-active[data-team="blue"] {
+  background: #1c335f;
+  color: #f3f7ff;
+  box-shadow: inset 0 0 0 2px #8eb6ff;
 }
 
 .chip:active {
@@ -404,8 +429,10 @@ h1 {
   .legend { display: none; }
   .topbar { padding-bottom: 6px; }
   h1 { font-size: 15px; }
-  .formations { margin-bottom: 4px; }
-  .chip { min-height: 32px; font-size: 12px; }
+  .formations { gap: 4px; margin-bottom: 4px; }
+  .formation-row { gap: 4px; grid-template-columns: 24px repeat(4, minmax(0, 1fr)); }
+  .side-tag { height: 24px; font-size: 12px; }
+  .chip { min-height: 28px; font-size: 12px; }
   .tool {
     min-height: 48px;
     padding: 4px;

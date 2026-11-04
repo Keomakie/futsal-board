@@ -67,8 +67,8 @@
   const statusEl = document.getElementById("status");
   const ctx = canvas.getContext("2d");
 
-  let formationId = "2-2";
-  const pieces = slotsFor(formationId).map((item) => ({
+  const formation = { red: "2-2", blue: "2-2" };
+  const pieces = slotsFor(formation.red, formation.blue).map((item) => ({
     ...item,
     homeU: item.u,
     homeV: item.v,
@@ -98,7 +98,8 @@
 
   pieces.forEach(createToken);
   loadState();
-  applyHomes(formationId);
+  applyHomes("red");
+  applyHomes("blue");
   bindTools();
   markFormationButtons();
   syncUndo();
@@ -149,29 +150,28 @@
     piece.el = el;
   }
 
-  function slotsFor(id) {
+  function teamSlots(team, id) {
     const shape = FORMATIONS[id] || FORMATIONS["2-2"];
-    const red = shape.map((slot) => ({
-      id: `red-${slot.num}`,
-      team: "red",
+    const label = team === "red" ? "紅隊" : "藍隊";
+    return shape.map((slot) => ({
+      id: `${team}-${slot.num}`,
+      team,
       num: slot.num,
-      name: `紅隊${slot.role}`,
-      u: slot.u,
-      v: slot.v
+      name: `${label}${slot.role}`,
+      u: team === "red" ? slot.u : round4(1 - slot.u),
+      v: team === "red" ? slot.v : round4(1 - slot.v)
     }));
-    const blue = shape.map((slot) => ({
-      id: `blue-${slot.num}`,
-      team: "blue",
-      num: slot.num,
-      name: `藍隊${slot.role}`,
-      u: round4(1 - slot.u),
-      v: round4(1 - slot.v)
-    }));
-    return red.concat(blue, [{ id: "ball", team: "ball", num: "", name: "足球", u: 0.5, v: 0.5 }]);
   }
 
-  function applyHomes(id) {
-    slotsFor(id).forEach((slot) => {
+  function slotsFor(redId, blueId) {
+    return teamSlots("red", redId).concat(
+      teamSlots("blue", blueId),
+      [{ id: "ball", team: "ball", num: "", name: "足球", u: 0.5, v: 0.5 }]
+    );
+  }
+
+  function applyHomes(team) {
+    teamSlots(team, formation[team]).forEach((slot) => {
       const piece = pieces.find((item) => item.id === slot.id);
       if (!piece) return;
       piece.homeU = slot.u;
@@ -183,24 +183,26 @@
 
   function markFormationButtons() {
     document.querySelectorAll("[data-formation]").forEach((button) => {
-      const on = button.dataset.formation === formationId;
+      const on = button.dataset.formation === formation[button.dataset.team];
       button.classList.toggle("is-active", on);
       button.setAttribute("aria-pressed", on ? "true" : "false");
     });
     const resetButton = document.getElementById("reset-formation");
-    if (resetButton) resetButton.setAttribute("aria-label", `重設為 ${formationId} 並清除線條`);
+    if (resetButton) {
+      resetButton.setAttribute("aria-label", `重設為紅隊 ${formation.red}、藍隊 ${formation.blue}，並清除線條`);
+    }
   }
 
-  function applyFormation(id) {
-    if (!FORMATIONS[id]) return;
+  function applyFormation(team, id) {
+    if ((team !== "red" && team !== "blue") || !FORMATIONS[id]) return;
     if (dragging) {
       dragging.el.classList.remove("is-dragging");
       dragging = null;
     }
-    formationId = id;
-    applyHomes(id);
+    formation[team] = id;
+    applyHomes(team);
     pieces.forEach((piece) => {
-      if (piece.team === "ball") return;
+      if (piece.team !== team) return;
       piece.u = piece.homeU;
       piece.v = piece.homeV;
       piece.el.classList.remove("is-dragging");
@@ -208,7 +210,7 @@
     });
     markFormationButtons();
     saveState();
-    flash(`已套用 ${id}，路線保留`);
+    flash(`${team === "red" ? "紅隊" : "藍隊"} ${id}，路線保留`);
   }
 
   function syncUndo() {
@@ -234,7 +236,7 @@
 
   function bindTools() {
     document.querySelectorAll("[data-formation]").forEach((button) => {
-      button.addEventListener("click", () => applyFormation(button.dataset.formation));
+      button.addEventListener("click", () => applyFormation(button.dataset.team, button.dataset.formation));
     });
 
     document.querySelectorAll("[data-tool]").forEach((button) => {
@@ -278,7 +280,7 @@
       redraw();
       saveState();
       syncUndo();
-      flash(`已回到 ${formationId}，線條已清除`);
+      flash(`紅 ${formation.red}、藍 ${formation.blue}，線已清除`);
     });
   }
 
@@ -702,7 +704,15 @@
       const raw = localStorage.getItem(STORE_KEY);
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (data.formation && FORMATIONS[data.formation]) formationId = data.formation;
+      const savedRed = data.formations && data.formations.red;
+      const savedBlue = data.formations && data.formations.blue;
+      if (FORMATIONS[savedRed] && FORMATIONS[savedBlue]) {
+        formation.red = savedRed;
+        formation.blue = savedBlue;
+      } else if (data.formation && FORMATIONS[data.formation]) {
+        formation.red = data.formation;
+        formation.blue = data.formation;
+      }
       if (Array.isArray(data.pieces)) {
         data.pieces.forEach((saved) => {
           const piece = pieces.find((item) => item.id === saved.id);
@@ -727,7 +737,7 @@
   function saveState() {
     try {
       const data = {
-        formation: formationId,
+        formations: { red: formation.red, blue: formation.blue },
         pieces: pieces.map((piece) => ({ id: piece.id, u: round4(piece.u), v: round4(piece.v) })),
         strokes: strokes.filter((stroke) => stroke !== currentStroke).map((stroke) => ({
           color: stroke.color,
