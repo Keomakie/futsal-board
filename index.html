@@ -32,7 +32,8 @@
     <main class="stage">
       <div class="pitch is-drawing" id="pitch" data-orientation="portrait" aria-label="五人足球場">
         <!-- 底層：球場 -->
-        <svg class="markings" viewBox="-36 -22 472 244" preserveAspectRatio="none" aria-hidden="true">
+        <!-- 比賽區 40m×20m（2:1），四邊各留 2.5m，球門深 1m -->
+        <svg class="markings" viewBox="-25 -25 450 250" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stop-color="#d7b57a"/>
@@ -50,22 +51,22 @@
             </radialGradient>
           </defs>
 
-          <rect x="-36" y="-22" width="472" height="244" rx="14" fill="#241910"/>
-          <rect x="-26" y="-14" width="452" height="228" rx="8" fill="url(#floor)"/>
+          <rect x="-25" y="-25" width="450" height="250" rx="12" fill="#241910"/>
+          <rect x="-19" y="-19" width="438" height="238" rx="8" fill="url(#floor)"/>
           <rect x="0" y="0" width="400" height="200" fill="url(#mow)"/>
           <rect x="0" y="0" width="400" height="200" fill="url(#shade)"/>
 
-          <!-- 球門：左側紅隊、右側藍隊。深 1.4m、寬 3m -->
+          <!-- 球門寬 3m、深 1m，對準場地正中 -->
           <g fill="rgba(255,255,255,0.14)" stroke="#f7f4ea" stroke-width="2.4" stroke-linejoin="round" vector-effect="non-scaling-stroke">
-            <rect x="-14" y="85" width="14" height="30"/>
-            <rect x="400" y="85" width="14" height="30"/>
+            <rect x="-10" y="85" width="10" height="30"/>
+            <rect x="400" y="85" width="10" height="30"/>
           </g>
           <g fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1" vector-effect="non-scaling-stroke">
-            <path d="M-10 85 V115 M-6 85 V115 M-14 93 H0 M-14 101 H0 M-14 109 H0"/>
-            <path d="M410 85 V115 M406 85 V115 M400 93 H414 M400 101 H414 M400 109 H414"/>
+            <path d="M-7 85 V115 M-4 85 V115 M-10 93 H0 M-10 101 H0 M-10 109 H0"/>
+            <path d="M407 85 V115 M404 85 V115 M400 93 H410 M400 101 H410 M400 109 H410"/>
           </g>
-          <line x1="-14" y1="85" x2="-14" y2="115" stroke="#ff5d5d" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-          <line x1="414" y1="85" x2="414" y2="115" stroke="#5aa2ff" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          <line x1="-10" y1="85" x2="-10" y2="115" stroke="#ff5d5d" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          <line x1="410" y1="85" x2="410" y2="115" stroke="#5aa2ff" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
 
           <!-- 禁區淡填，不描出穿越球門的直線 -->
           <path d="M0 25 A60 60 0 0 1 60 85 L60 115 A60 60 0 0 1 0 175 Z" fill="rgba(255,255,255,0.05)"/>
@@ -82,18 +83,18 @@
             <circle cx="200" cy="100" r="30"/>
             <path d="M0 25 A60 60 0 0 1 60 85 L60 115 A60 60 0 0 1 0 175"/>
             <path d="M400 25 A60 60 0 0 0 340 85 L340 115 A60 60 0 0 0 400 175"/>
-            <path d="M6 0 A6 6 0 0 1 0 6"/>
-            <path d="M394 0 A6 6 0 0 0 400 6"/>
-            <path d="M0 194 A6 6 0 0 1 6 200"/>
-            <path d="M394 200 A6 6 0 0 1 400 194"/>
+            <path d="M2.5 0 A2.5 2.5 0 0 1 0 2.5"/>
+            <path d="M397.5 0 A2.5 2.5 0 0 0 400 2.5"/>
+            <path d="M0 197.5 A2.5 2.5 0 0 1 2.5 200"/>
+            <path d="M397.5 200 A2.5 2.5 0 0 1 400 197.5"/>
           </g>
 
           <g fill="#fff" stroke="#146b38" stroke-width="1.2" vector-effect="non-scaling-stroke">
-            <circle cx="200" cy="100" r="3.2"/>
-            <circle cx="60" cy="100" r="3.2"/>
-            <circle cx="340" cy="100" r="3.2"/>
-            <circle cx="100" cy="100" r="2.6"/>
-            <circle cx="300" cy="100" r="2.6"/>
+            <circle cx="200" cy="100" r="1.6"/>
+            <circle cx="60" cy="100" r="1.6"/>
+            <circle cx="340" cy="100" r="1.6"/>
+            <circle cx="100" cy="100" r="1.4"/>
+            <circle cx="300" cy="100" r="1.4"/>
           </g>
 
           <!-- 替補區：中線兩側各 5m，位於同一條邊線外 -->

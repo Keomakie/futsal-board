@@ -1,10 +1,10 @@
 (() => {
   /*
-   * 座標與 index.html 的 viewBox="-36 -22 472 244" 對齊。
-   * 場地本體 40m × 20m，原點在紅隊球門線與左上方邊線的交點。
+   * 座標與 index.html 的 viewBox="-25 -25 450 250" 對齊。
+   * 比賽區 40m × 20m，四邊各 2.5m。原點在紅隊球門線與上方邊線的交點。
    * u：0 紅隊球門 → 1 藍隊球門；v：0 → 1 沿場地寬度。
    */
-  const VB = { x: -36, y: -22, w: 472, h: 244 };
+  const VB = { x: -25, y: -25, w: 450, h: 250 };
   const FIELD = { x: 0, y: 0, w: 400, h: 200 };
   const RATIO = VB.w / VB.h;
 
@@ -71,8 +71,15 @@
   let statusTimer = 0;
   let layoutFrame = 0;
   let laidOut = { w: 0, h: 0, portrait: null, dpr: 0 };
+  let boxCache = null;
+  let drawFrame = 0;
+  let snapshotReady = false;
+  const snapshot = document.createElement("canvas");
+  const snapCtx = snapshot.getContext("2d");
+  const STORE_KEY = "futsal-board-state";
 
   pieces.forEach(createToken);
+  loadState();
   bindTools();
   bindPointer();
   registerServiceWorker();
@@ -139,6 +146,7 @@
       currentStroke = null;
       drawing = false;
       redraw();
+      saveState();
       flash("線條已清除");
     });
 
@@ -157,6 +165,7 @@
       currentStroke = null;
       drawing = false;
       redraw();
+      saveState();
       flash("陣型已重設");
     });
   }
@@ -254,7 +263,7 @@
       ly: clientY
     };
     strokes.push(currentStroke);
-    redraw();
+    requestRedraw();
   }
 
   function extendStroke(clientX, clientY) {
@@ -265,10 +274,12 @@
     currentStroke.lx = clientX;
     currentStroke.ly = clientY;
     currentStroke.points.push(clientToUV(clientX, clientY));
-    redraw();
+    requestRedraw();
   }
 
   function finishPointer() {
+    const drew = drawing;
+    const moved = dragging !== null;
     if (dragging) {
       dragging.el.classList.remove("is-dragging");
       dragging = null;
@@ -276,6 +287,8 @@
     drawing = false;
     currentStroke = null;
     activeTouchId = null;
+    if (drew) redraw();
+    if (drew || moved) saveState();
   }
 
   function findTouch(list, id) {
@@ -311,8 +324,16 @@
     const port = fit(availW, availH, 1 / RATIO);
     const nextPortrait = port.area > land.area;
     const box = nextPortrait ? port : land;
-    const width = Math.max(1, Math.round(box.w));
-    const height = Math.max(1, Math.round(box.h));
+    let width = Math.max(1, Math.round(box.w));
+    let height = Math.round(nextPortrait ? width * RATIO : width / RATIO);
+    if (height > availH) {
+      height = Math.max(1, Math.floor(availH));
+      width = Math.max(1, Math.round(nextPortrait ? height / RATIO : height * RATIO));
+    }
+    if (width > availW) {
+      width = Math.max(1, Math.floor(availW));
+      height = Math.max(1, Math.round(nextPortrait ? width * RATIO : width / RATIO));
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
     if (width === laidOut.w && height === laidOut.h && nextPortrait === laidOut.portrait && dpr === laidOut.dpr) return;
@@ -325,6 +346,8 @@
     pitch.classList.toggle("is-landscape", !portrait);
     pitch.dataset.orientation = portrait ? "portrait" : "landscape";
 
+    boxCache = null;
+    snapshotReady = false;
     const rect = pitch.getBoundingClientRect();
     applyMarkings(rect.width, rect.height);
     canvas.width = Math.max(1, Math.round(rect.width * dpr));
@@ -376,28 +399,68 @@
     piece.el.style.top = `${(spot.y / h) * 100}%`;
   }
 
+  function lineWidthFor(w, h) {
+    return Math.min(8, Math.max(3, Math.min(w, h) * 0.011));
+  }
+
+  function requestRedraw() {
+    if (drawFrame) return;
+    drawFrame = window.requestAnimationFrame(() => {
+      drawFrame = 0;
+      paint();
+    });
+  }
+
   function redraw() {
+    snapshotReady = false;
+    if (drawFrame) {
+      window.cancelAnimationFrame(drawFrame);
+      drawFrame = 0;
+    }
+    paint();
+  }
+
+  function paint() {
     const { w, h } = pitchBox();
     if (!w || !h) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const width = lineWidthFor(w, h);
+    ensureSnapshot(w, h, dpr, width);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(snapshot, 0, 0);
+    if (!currentStroke) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    const width = Math.min(8, Math.max(3, Math.min(w, h) * 0.011));
-    strokes.forEach((stroke) => trace(stroke, width));
+    trace(currentStroke, width, ctx);
   }
 
-  function trace(stroke, width) {
+  function ensureSnapshot(w, h, dpr, width) {
+    const bufferW = Math.max(1, Math.round(w * dpr));
+    const bufferH = Math.max(1, Math.round(h * dpr));
+    if (snapshotReady && snapshot.width === bufferW && snapshot.height === bufferH) return;
+    snapshot.width = bufferW;
+    snapshot.height = bufferH;
+    snapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    snapCtx.clearRect(0, 0, w, h);
+    strokes.forEach((stroke) => {
+      if (stroke === currentStroke) return;
+      trace(stroke, width, snapCtx);
+    });
+    snapshotReady = true;
+  }
+
+  function trace(stroke, width, g) {
     const points = stroke.points.map((point) => uvToScreen(point.u, point.v));
     if (!points.length) return;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.setLineDash(stroke.dashed ? [width * 2.6, width * 1.8] : []);
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    g.setLineDash(stroke.dashed ? [width * 2.6, width * 1.8] : []);
     if (points.length === 1) {
-      ctx.setLineDash([]);
-      ctx.fillStyle = stroke.color;
-      ctx.beginPath();
-      ctx.arc(points[0].x, points[0].y, width / 2, 0, Math.PI * 2);
-      ctx.fill();
+      g.setLineDash([]);
+      g.fillStyle = stroke.color;
+      g.beginPath();
+      g.arc(points[0].x, points[0].y, width / 2, 0, Math.PI * 2);
+      g.fill();
       return;
     }
 
@@ -406,32 +469,32 @@
     const linePoints = head ? trimEnd(points, head * 0.72) : points;
 
     const drawPath = () => {
-      ctx.beginPath();
-      ctx.moveTo(linePoints[0].x, linePoints[0].y);
+      g.beginPath();
+      g.moveTo(linePoints[0].x, linePoints[0].y);
       if (linePoints.length === 2) {
-        ctx.lineTo(linePoints[1].x, linePoints[1].y);
+        g.lineTo(linePoints[1].x, linePoints[1].y);
         return;
       }
-      ctx.lineTo((linePoints[0].x + linePoints[1].x) / 2, (linePoints[0].y + linePoints[1].y) / 2);
+      g.lineTo((linePoints[0].x + linePoints[1].x) / 2, (linePoints[0].y + linePoints[1].y) / 2);
       for (let i = 1; i < linePoints.length - 1; i += 1) {
         const midX = (linePoints[i].x + linePoints[i + 1].x) / 2;
         const midY = (linePoints[i].y + linePoints[i + 1].y) / 2;
-        ctx.quadraticCurveTo(linePoints[i].x, linePoints[i].y, midX, midY);
+        g.quadraticCurveTo(linePoints[i].x, linePoints[i].y, midX, midY);
       }
       const last = linePoints[linePoints.length - 1];
-      ctx.lineTo(last.x, last.y);
+      g.lineTo(last.x, last.y);
     };
 
-    ctx.lineWidth = width + 2.2;
-    ctx.strokeStyle = "rgba(0,0,0,0.32)";
+    g.lineWidth = width + 2.2;
+    g.strokeStyle = "rgba(0,0,0,0.32)";
     drawPath();
-    ctx.stroke();
-    ctx.lineWidth = width;
-    ctx.strokeStyle = stroke.color;
+    g.stroke();
+    g.lineWidth = width;
+    g.strokeStyle = stroke.color;
     drawPath();
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (arrow) drawArrowHead(arrow.tip, arrow.from, head, stroke.color);
+    g.stroke();
+    g.setLineDash([]);
+    if (arrow) drawArrowHead(g, arrow.tip, arrow.from, head, stroke.color);
   }
 
   function trimEnd(points, distance) {
@@ -455,17 +518,17 @@
     return { tip, from: points[points.length - 2] };
   }
 
-  function drawArrowHead(tip, from, length, color) {
+  function drawArrowHead(g, tip, from, length, color) {
     const angle = Math.atan2(tip.y - from.y, tip.x - from.x);
     const spread = Math.PI / 7;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(tip.x, tip.y);
-    ctx.lineTo(tip.x - length * Math.cos(angle - spread), tip.y - length * Math.sin(angle - spread));
-    ctx.lineTo(tip.x - length * 0.72 * Math.cos(angle), tip.y - length * 0.72 * Math.sin(angle));
-    ctx.lineTo(tip.x - length * Math.cos(angle + spread), tip.y - length * Math.sin(angle + spread));
-    ctx.closePath();
-    ctx.fill();
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(tip.x, tip.y);
+    g.lineTo(tip.x - length * Math.cos(angle - spread), tip.y - length * Math.sin(angle - spread));
+    g.lineTo(tip.x - length * 0.72 * Math.cos(angle), tip.y - length * 0.72 * Math.sin(angle));
+    g.lineTo(tip.x - length * Math.cos(angle + spread), tip.y - length * Math.sin(angle + spread));
+    g.closePath();
+    g.fill();
   }
 
   function fieldNorm(u, v) {
@@ -506,8 +569,10 @@
   }
 
   function pitchBox() {
+    if (boxCache) return boxCache;
     const rect = pitch.getBoundingClientRect();
-    return { w: rect.width, h: rect.height, left: rect.left, top: rect.top };
+    boxCache = { w: rect.width, h: rect.height, left: rect.left, top: rect.top };
+    return boxCache;
   }
 
   function clamp(value, min, max) {
@@ -519,9 +584,65 @@
     statusEl.textContent = TOOLS[toolId].label;
   }
 
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.pieces)) {
+        data.pieces.forEach((saved) => {
+          const piece = pieces.find((item) => item.id === saved.id);
+          if (!piece || !Number.isFinite(saved.u) || !Number.isFinite(saved.v)) return;
+          piece.u = saved.u;
+          piece.v = saved.v;
+        });
+      }
+      if (Array.isArray(data.strokes)) {
+        strokes = data.strokes.filter((stroke) => stroke && Array.isArray(stroke.points)).map((stroke) => ({
+          color: typeof stroke.color === "string" ? stroke.color : "#ffe14a",
+          dashed: !!stroke.dashed,
+          arrow: !!stroke.arrow,
+          points: stroke.points.filter((point) => Number.isFinite(point.u) && Number.isFinite(point.v))
+        })).filter((stroke) => stroke.points.length);
+      }
+    } catch (error) {
+      strokes = [];
+    }
+  }
+
+  function saveState() {
+    try {
+      const data = {
+        pieces: pieces.map((piece) => ({ id: piece.id, u: round4(piece.u), v: round4(piece.v) })),
+        strokes: strokes.filter((stroke) => stroke !== currentStroke).map((stroke) => ({
+          color: stroke.color,
+          dashed: !!stroke.dashed,
+          arrow: !!stroke.arrow,
+          points: stroke.points.map((point) => ({ u: round4(point.u), v: round4(point.v) }))
+        }))
+      };
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    } catch (error) {
+      /* 儲存空間不可用時，這一局仍然可以繼續操作 */
+    }
+  }
+
+  function round4(value) {
+    return Math.round(value * 10000) / 10000;
+  }
+
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
+    let hadController = false;
     window.addEventListener("load", () => {
+      hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadController) {
+          hadController = true;
+          return;
+        }
+        window.location.reload();
+      });
       navigator.serviceWorker.register("./sw.js").catch(() => {});
     });
   }
