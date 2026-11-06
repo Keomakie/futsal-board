@@ -328,6 +328,8 @@
     document.getElementById("step-del").addEventListener("click", deleteSelected);
     document.getElementById("step-earlier").addEventListener("click", () => shiftStep(-1));
     document.getElementById("step-later").addEventListener("click", () => shiftStep(1));
+    document.getElementById("step-join").addEventListener("click", joinSelected);
+    document.getElementById("step-split").addEventListener("click", splitSelected);
     document.getElementById("step-owner").addEventListener("click", () => {
       if (!selectedStep) return;
       reassignMode = !reassignMode;
@@ -911,7 +913,9 @@
     const sameBtn = document.getElementById("same-time");
     if (sameBtn) {
       sameBtn.classList.toggle("is-active", sameTime);
+      sameBtn.textContent = sameTime ? "同時中" : "同時";
       sameBtn.setAttribute("aria-pressed", sameTime ? "true" : "false");
+      sameBtn.setAttribute("aria-label", sameTime ? "下一筆會同上一步同時，再撳一次恢復逐步" : "下一筆與上一筆同時。再撳一次就恢復逐步");
     }
     const slowBtn = document.getElementById("slow-play");
     if (slowBtn) {
@@ -1194,6 +1198,11 @@
     const owner = document.getElementById("step-owner");
     if (owner) owner.classList.toggle("is-active", reassignMode);
     const noted = strokes.find((stroke) => stroke.step === selectedStep);
+    const join = document.getElementById("step-join");
+    const split = document.getElementById("step-split");
+    const stepCount = strokes.filter((stroke) => stroke.step === selectedStep).length;
+    if (join) join.disabled = !selectedStep || uniqueStepNumbers().length < 2;
+    if (split) split.disabled = !selectedStep || stepCount < 2;
     document.querySelectorAll("[data-note]").forEach((button) => {
       button.classList.toggle("is-active", !!(noted && noted.note === button.dataset.note));
     });
@@ -1263,6 +1272,56 @@
     syncStepUi();
     redraw();
     flash(`已選第 ${step} 步`);
+  }
+
+  function uniqueStepNumbers() {
+    return [...new Set(strokes.map((stroke) => stroke.step).filter((step) => step > 0))].sort((a, b) => a - b);
+  }
+
+  function joinSelected() {
+    if (!selectedStep) return;
+    const nums = uniqueStepNumbers();
+    const index = nums.indexOf(selectedStep);
+    if (nums.length < 2 || index < 0) {
+      flash("要有另一步先可以同時");
+      return;
+    }
+    const neighbor = index > 0 ? nums[index - 1] : nums[index + 1];
+    const keep = Math.min(selectedStep, neighbor);
+    const drop = Math.max(selectedStep, neighbor);
+    strokes.forEach((stroke) => {
+      if (stroke.step === drop) stroke.step = keep;
+    });
+    const remaining = nums.filter((step) => step !== drop);
+    renumberSteps();
+    selectedStep = remaining.indexOf(keep) + 1;
+    holdStep = -1;
+    redraw();
+    saveState();
+    syncStepUi();
+    flash(`已併成第 ${selectedStep} 步同時進行`);
+  }
+
+  function splitSelected() {
+    if (!selectedStep) return;
+    const group = strokes.filter((stroke) => stroke.step === selectedStep);
+    if (group.length < 2) {
+      flash("呢步得一條線，可選另一步再撳同時");
+      return;
+    }
+    const shift = group.length - 1;
+    strokes.forEach((stroke) => {
+      if (stroke.step > selectedStep) stroke.step += shift;
+    });
+    group.forEach((stroke, index) => {
+      stroke.step = selectedStep + index;
+    });
+    renumberSteps();
+    holdStep = -1;
+    redraw();
+    saveState();
+    syncStepUi();
+    flash("已拆開做逐步");
   }
 
   function renumberSteps() {
@@ -1438,11 +1497,11 @@
   function scenesFor(kind) {
     if (kind === "corner") {
       const right = {
-        ball: { u: 0.97, v: 0.96 },
+        ball: { u: 0.96, v: 0.92 },
         "red-1": { u: 0.1, v: 0.5 },
         "red-2": { u: 0.62, v: 0.48 },
         "red-3": { u: 0.72, v: 0.3 },
-        "red-4": { u: 0.9, v: 0.86 },
+        "red-4": { u: 0.84, v: 0.97 },
         "red-5": { u: 0.78, v: 0.55 },
         "blue-1": { u: 0.94, v: 0.5 },
         "blue-2": { u: 0.7, v: 0.42 },
@@ -1460,7 +1519,7 @@
     if (kind === "kickin") {
       const right = {
         ball: { u: 0.62, v: 0.98 },
-        "red-4": { u: 0.62, v: 0.9 },
+        "red-4": { u: 0.5, v: 0.99 },
         "red-5": { u: 0.72, v: 0.72 },
         "red-3": { u: 0.55, v: 0.62 }
       };
@@ -1691,7 +1750,7 @@
 
   function setModeStatus() {
     window.clearTimeout(statusTimer);
-    statusEl.textContent = TOOLS[toolId].label;
+    statusEl.textContent = sameTime ? "同時：下一筆同一時間" : TOOLS[toolId].label;
   }
 
   function loadState() {
