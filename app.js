@@ -9,6 +9,7 @@
   const RATIO = VB.w / VB.h;
 
   const TOOLS = {
+    "move": { label: "移動：拖曳球員同足球" },
     "run-solid": { color: "#ffe14a", dashed: false, arrow: false, label: "黃實線：畫跑動路線" },
     "run-dashed": { color: "#ffe14a", dashed: true, arrow: false, label: "黃虛線：畫跑動路線" },
     "pass-solid": { color: "#ffffff", dashed: false, arrow: false, label: "白實線：畫傳球路線" },
@@ -64,6 +65,7 @@
   const canvas = document.getElementById("draw-layer");
   const tokensEl = document.getElementById("tokens");
   const stage = document.querySelector(".stage");
+  const appEl = document.querySelector(".app");
   const statusEl = document.getElementById("status");
   const ctx = canvas.getContext("2d");
 
@@ -76,7 +78,9 @@
   }));
 
   let portrait = true;
+  let penId = "run-solid";
   let toolId = "run-solid";
+  let panelOpen = true;
   let strokes = [];
   let currentStroke = null;
   let drawing = false;
@@ -92,6 +96,13 @@
   let boxCache = null;
   let drawFrame = 0;
   let snapshotReady = false;
+  let playing = false;
+  let paused = false;
+  let playClock = 0;
+  let lastTick = 0;
+  let animFrame = 0;
+  let routes = [];
+  let origins = null;
   const snapshot = document.createElement("canvas");
   const snapCtx = snapshot.getContext("2d");
   const STORE_KEY = "futsal-board-state";
@@ -103,6 +114,7 @@
   bindTools();
   markFormationButtons();
   syncUndo();
+  syncChrome();
   bindPointer();
   registerServiceWorker();
   layout();
@@ -201,6 +213,7 @@
     }
     formation[team] = id;
     applyHomes(team);
+    forgetPlayback();
     pieces.forEach((piece) => {
       if (piece.team !== team) return;
       piece.u = piece.homeU;
@@ -240,20 +253,29 @@
     });
 
     document.querySelectorAll("[data-tool]").forEach((button) => {
-      button.addEventListener("click", () => {
-        toolId = button.dataset.tool;
-        document.querySelectorAll("[data-tool]").forEach((item) => {
-          const on = item.dataset.tool === toolId;
-          item.classList.toggle("is-active", on);
-          item.setAttribute("aria-pressed", on ? "true" : "false");
-        });
-        setModeStatus();
-      });
+      button.addEventListener("click", () => selectTool(button.dataset.tool));
     });
 
-    document.getElementById("undo-line").addEventListener("click", undoLine);
+    document.getElementById("toggle-panel").addEventListener("click", () => {
+      panelOpen = !panelOpen;
+      syncChrome();
+      saveState();
+      requestLayout();
+    });
+
+    document.getElementById("move-pieces").addEventListener("click", () => {
+      selectTool(toolId === "move" ? penId : "move");
+    });
+
+    document.getElementById("play-route").addEventListener("click", togglePlay);
+
+    document.getElementById("undo-line").addEventListener("click", () => {
+      forgetPlayback();
+      undoLine();
+    });
 
     document.getElementById("clear-lines").addEventListener("click", () => {
+      forgetPlayback();
       strokes = [];
       currentStroke = null;
       drawing = false;
@@ -264,6 +286,7 @@
     });
 
     document.getElementById("reset-formation").addEventListener("click", () => {
+      forgetPlayback();
       if (dragging) {
         dragging.el.classList.remove("is-dragging");
         dragging = null;
@@ -346,6 +369,7 @@
   }
 
   function startDrag(piece, clientX, clientY) {
+    forgetPlayback();
     dragging = piece;
     drawing = false;
     currentStroke = null;
@@ -365,6 +389,8 @@
   }
 
   function beginStroke(clientX, clientY) {
+    if (toolId === "move") return;
+    forgetPlayback();
     drawing = true;
     const point = clientToUV(clientX, clientY);
     const tool = TOOLS[toolId];
@@ -431,8 +457,8 @@
 
   function layout() {
     const bounds = stage.getBoundingClientRect();
-    const availW = Math.max(0, bounds.width - 12);
-    const availH = Math.max(0, bounds.height - 12);
+    const availW = Math.max(0, bounds.width - 2);
+    const availH = Math.max(0, bounds.height - 2);
     if (availW < 40 || availH < 40) return;
 
     const land = fit(availW, availH, RATIO);
@@ -694,6 +720,224 @@
     return Math.min(max, Math.max(min, value));
   }
 
+  function selectTool(id) {
+    if (!TOOLS[id]) return;
+    if (id !== "move") penId = id;
+    toolId = id;
+    document.querySelectorAll("[data-tool]").forEach((item) => {
+      const on = item.dataset.tool === toolId;
+      item.classList.toggle("is-active", on);
+      item.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    syncChrome();
+    setModeStatus();
+  }
+
+  function syncChrome() {
+    appEl.classList.toggle("is-bar-hidden", !panelOpen);
+    const toggle = document.getElementById("toggle-panel");
+    if (toggle) {
+      toggle.textContent = panelOpen ? "收起" : "展開";
+      toggle.setAttribute("aria-expanded", panelOpen ? "true" : "false");
+      toggle.setAttribute("aria-label", panelOpen ? "收起功能表" : "展開功能表");
+    }
+    pitch.classList.toggle("is-drawing", toolId !== "move");
+    pitch.classList.toggle("is-moving", toolId === "move");
+    const moveBtn = document.getElementById("move-pieces");
+    if (moveBtn) {
+      const on = toolId === "move";
+      moveBtn.classList.toggle("is-active", on);
+      moveBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    syncPlayButton();
+  }
+
+  function syncPlayButton() {
+    const button = document.getElementById("play-route");
+    if (!button) return;
+    button.textContent = playing ? "暫停" : "播放";
+    button.setAttribute("aria-label", playing ? "暫停播放" : "沿路線播放");
+    button.setAttribute("aria-pressed", playing ? "true" : "false");
+    button.classList.toggle("is-active", playing);
+  }
+
+  function forgetPlayback() {
+    playing = false;
+    paused = false;
+    playClock = 0;
+    routes = [];
+    origins = null;
+    if (animFrame) {
+      window.cancelAnimationFrame(animFrame);
+      animFrame = 0;
+    }
+    pieces.forEach((piece) => {
+      if (piece.el) piece.el.classList.remove("is-animating");
+    });
+    syncPlayButton();
+  }
+
+  function physicalDistance(a, b) {
+    return Math.hypot((a.u - b.u) * 2, a.v - b.v);
+  }
+
+  function nearestPiece(list, point, limit) {
+    let best = null;
+    let bestDistance = limit;
+    list.forEach((piece) => {
+      const distance = physicalDistance(piece, point);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = piece;
+      }
+    });
+    return best;
+  }
+
+  function routeLength(points) {
+    let length = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      length += physicalDistance(points[i - 1], points[i]);
+    }
+    return length;
+  }
+
+  function pointAlong(points, distance) {
+    let left = distance;
+    for (let i = 1; i < points.length; i += 1) {
+      const from = points[i - 1];
+      const to = points[i];
+      const step = physicalDistance(from, to);
+      if (left <= step || i === points.length - 1) {
+        const mix = step === 0 ? 1 : Math.min(1, left / step);
+        return { u: from.u + (to.u - from.u) * mix, v: from.v + (to.v - from.v) * mix };
+      }
+      left -= step;
+    }
+    return points[points.length - 1];
+  }
+
+  function buildRoutes() {
+    const groups = new Map();
+    const players = pieces.filter((piece) => piece.team !== "ball");
+    const ball = pieces.find((piece) => piece.team === "ball");
+    strokes.filter((stroke) => stroke !== currentStroke && stroke.points.length >= 2).forEach((stroke) => {
+      const start = stroke.points[0];
+      const pass = stroke.color === "#ffffff";
+      let target = null;
+      if (pass) {
+        if (ball && (nearestPiece([ball], start, 0.36) || nearestPiece(players, start, 0.36))) target = ball;
+      } else {
+        target = nearestPiece(players, start, 0.36);
+      }
+      if (!target) return;
+      if (!groups.has(target)) groups.set(target, []);
+      groups.get(target).push(stroke);
+    });
+    return [...groups.entries()].map(([piece, list]) => {
+      const segments = list.map((stroke) => {
+        const length = routeLength(stroke.points);
+        return { points: stroke.points, length, duration: Math.max(0.4, length / 0.42) };
+      });
+      return {
+        piece,
+        segments,
+        total: segments.reduce((sum, segment) => sum + segment.duration, 0)
+      };
+    });
+  }
+
+  function positionOnRoute(route, time) {
+    let remain = time;
+    for (let i = 0; i < route.segments.length; i += 1) {
+      const segment = route.segments[i];
+      if (remain > segment.duration && i < route.segments.length - 1) {
+        remain -= segment.duration;
+        continue;
+      }
+      const distance = segment.length * (Math.min(remain, segment.duration) / segment.duration);
+      return pointAlong(segment.points, distance);
+    }
+    const last = route.segments[route.segments.length - 1].points;
+    return last[last.length - 1];
+  }
+
+  function captureOrigins() {
+    origins = {};
+    pieces.forEach((piece) => {
+      origins[piece.id] = { u: piece.u, v: piece.v };
+    });
+  }
+
+  function restoreOrigins() {
+    if (!origins) return;
+    pieces.forEach((piece) => {
+      const spot = origins[piece.id];
+      if (!spot) return;
+      piece.u = spot.u;
+      piece.v = spot.v;
+      place(piece);
+    });
+  }
+
+  function togglePlay() {
+    if (playing) {
+      playing = false;
+      paused = true;
+      if (animFrame) window.cancelAnimationFrame(animFrame);
+      animFrame = 0;
+      syncPlayButton();
+      flash("已暫停");
+      saveState();
+      return;
+    }
+    if (!paused) {
+      if (origins) restoreOrigins();
+      routes = buildRoutes();
+      if (!routes.length) {
+        flash("請由球員或足球旁邊開始畫線");
+        return;
+      }
+      if (!origins) captureOrigins();
+      playClock = 0;
+    }
+    playing = true;
+    paused = false;
+    lastTick = performance.now();
+    routes.forEach((route) => route.piece.el.classList.add("is-animating"));
+    syncPlayButton();
+    flash("播放路線");
+    animFrame = window.requestAnimationFrame(playFrame);
+  }
+
+  function playFrame(now) {
+    if (!playing) return;
+    const step = Math.min(0.05, (now - lastTick) / 1000);
+    lastTick = now;
+    playClock += step;
+    let finished = true;
+    routes.forEach((route) => {
+      if (playClock < route.total) finished = false;
+      const spot = positionOnRoute(route, Math.min(playClock, route.total));
+      route.piece.u = spot.u;
+      route.piece.v = spot.v;
+      place(route.piece);
+    });
+    if (finished) {
+      playing = false;
+      paused = false;
+      playClock = 0;
+      if (animFrame) window.cancelAnimationFrame(animFrame);
+      animFrame = 0;
+      pieces.forEach((piece) => piece.el.classList.remove("is-animating"));
+      syncPlayButton();
+      saveState();
+      flash("播放完成");
+      return;
+    }
+    animFrame = window.requestAnimationFrame(playFrame);
+  }
+
   function setModeStatus() {
     window.clearTimeout(statusTimer);
     statusEl.textContent = TOOLS[toolId].label;
@@ -729,6 +973,16 @@
           points: stroke.points.filter((point) => Number.isFinite(point.u) && Number.isFinite(point.v))
         })).filter((stroke) => stroke.points.length);
       }
+      if (typeof data.panelOpen === "boolean") panelOpen = data.panelOpen;
+      if (Array.isArray(data.origins)) {
+        const next = {};
+        data.origins.forEach((saved) => {
+          if (!pieces.some((piece) => piece.id === saved.id)) return;
+          if (!Number.isFinite(saved.u) || !Number.isFinite(saved.v)) return;
+          next[saved.id] = { u: saved.u, v: saved.v };
+        });
+        origins = Object.keys(next).length ? next : null;
+      }
     } catch (error) {
       strokes = [];
     }
@@ -738,6 +992,12 @@
     try {
       const data = {
         formations: { red: formation.red, blue: formation.blue },
+        panelOpen,
+        origins: origins ? pieces.filter((piece) => origins[piece.id]).map((piece) => ({
+          id: piece.id,
+          u: round4(origins[piece.id].u),
+          v: round4(origins[piece.id].v)
+        })) : null,
         pieces: pieces.map((piece) => ({ id: piece.id, u: round4(piece.u), v: round4(piece.v) })),
         strokes: strokes.filter((stroke) => stroke !== currentStroke).map((stroke) => ({
           color: stroke.color,

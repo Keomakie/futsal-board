@@ -116,7 +116,8 @@
       </div>
     </main>
 
-    <footer class="action-bar">
+    <footer class="action-bar" id="action-bar">
+      <div id="panel">
       <div class="formations">
         <div class="formation-row" role="toolbar" aria-label="紅隊陣型">
           <span class="side-tag side-tag-red" aria-hidden="true">紅</span>
@@ -173,6 +174,12 @@
           <span class="tool-label">重設陣型</span>
         </button>
         </div>
+      </div>
+      </div>
+      <div class="dock" role="toolbar" aria-label="快速操作">
+        <button type="button" class="dock-btn" id="toggle-panel" aria-expanded="true" aria-controls="panel" aria-label="收起功能表">收起</button>
+        <button type="button" class="dock-btn" id="move-pieces" aria-pressed="false" aria-label="移動棋子">移動</button>
+        <button type="button" class="dock-btn" id="play-route" aria-pressed="false" aria-label="沿路線播放">播放</button>
       </div>
     </footer>
   </div>

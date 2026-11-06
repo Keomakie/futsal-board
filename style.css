@@ -131,7 +131,7 @@ h1 {
   min-height: 0;
   display: grid;
   place-items: center;
-  padding: 8px;
+  padding: 4px;
   touch-action: none;
   overflow: hidden;
 }
@@ -173,6 +173,10 @@ h1 {
   cursor: crosshair;
 }
 
+.pitch.is-drawing .token {
+  pointer-events: none;
+}
+
 .tokens {
   position: absolute;
   inset: 0;
@@ -201,7 +205,8 @@ h1 {
 }
 
 .token.is-dragging,
-.token.ball.is-dragging {
+.token.ball.is-dragging,
+.token.is-animating {
   z-index: 20;
   cursor: grabbing;
   transition: none;
@@ -270,6 +275,61 @@ h1 {
   padding-bottom: calc(8px + env(safe-area-inset-bottom));
   padding-left: calc(10px + env(safe-area-inset-left));
   padding-right: calc(10px + env(safe-area-inset-right));
+}
+
+.app.is-bar-hidden .action-bar {
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+}
+
+.app.is-bar-hidden #panel {
+  display: none;
+}
+
+.dock {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dock-btn {
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: #24302a;
+  color: #e7f2eb;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.dock-btn.is-active {
+  background: #1d4a34;
+  color: #f4fff7;
+  box-shadow: inset 0 0 0 2px #8ddeaf;
+}
+
+.app.is-bar-hidden .dock {
+  position: fixed;
+  right: calc(8px + env(safe-area-inset-right));
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  width: 76px;
+  margin: 0;
+  grid-template-columns: 1fr;
+  z-index: 8;
+}
+
+.app.is-bar-hidden .dock-btn {
+  background: rgba(20, 28, 24, 0.92);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .formations {
@@ -433,6 +493,8 @@ h1 {
   .formation-row { gap: 4px; grid-template-columns: 24px repeat(4, minmax(0, 1fr)); }
   .side-tag { height: 24px; font-size: 12px; }
   .chip { min-height: 28px; font-size: 12px; }
+  .dock { gap: 4px; margin-top: 4px; }
+  .dock-btn { min-height: 34px; font-size: 13px; }
   .tool {
     min-height: 48px;
     padding: 4px;
