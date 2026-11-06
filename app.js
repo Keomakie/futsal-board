@@ -101,8 +101,10 @@
   let playClock = 0;
   let lastTick = 0;
   let animFrame = 0;
-  let routes = [];
+  let routes = null;
   let origins = null;
+  let sameTime = false;
+  let slowPlay = false;
   const snapshot = document.createElement("canvas");
   const snapCtx = snapshot.getContext("2d");
   const STORE_KEY = "futsal-board-state";
@@ -267,6 +269,20 @@
       selectTool(toolId === "move" ? penId : "move");
     });
 
+    document.getElementById("same-time").addEventListener("click", () => {
+      sameTime = !sameTime;
+      syncChrome();
+      saveState();
+      flash(sameTime ? "下一筆會同時發生" : "下一筆接着發生");
+    });
+
+    document.getElementById("slow-play").addEventListener("click", () => {
+      slowPlay = !slowPlay;
+      syncChrome();
+      saveState();
+      flash(slowPlay ? "慢速播放" : "正常速度");
+    });
+
     document.getElementById("play-route").addEventListener("click", togglePlay);
 
     document.getElementById("undo-line").addEventListener("click", () => {
@@ -388,6 +404,13 @@
     place(dragging);
   }
 
+  function nextStepNumber() {
+    const done = strokes.filter((stroke) => stroke !== currentStroke && stroke.step);
+    if (!done.length) return 1;
+    const last = done[done.length - 1].step;
+    return sameTime ? last : last + 1;
+  }
+
   function beginStroke(clientX, clientY) {
     if (toolId === "move") return;
     forgetPlayback();
@@ -398,6 +421,7 @@
       color: tool.color,
       dashed: tool.dashed,
       arrow: tool.arrow,
+      step: nextStepNumber(),
       points: [point],
       lx: clientX,
       ly: clientY
@@ -636,6 +660,33 @@
     g.stroke();
     g.setLineDash([]);
     if (arrow) drawArrowHead(g, arrow.tip, arrow.from, head, stroke.color);
+    drawStepBadge(g, stroke, points);
+  }
+
+  function drawStepBadge(g, stroke, points) {
+    if (!stroke.step || !points.length) return;
+    const start = points[0];
+    const next = points[Math.min(1, points.length - 1)];
+    const dx = next.x - start.x;
+    const dy = next.y - start.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const x = start.x + (dx / len) * 12 + (-dy / len) * 26;
+    const y = start.y + (dy / len) * 12 + (dx / len) * 26;
+    g.save();
+    g.setLineDash([]);
+    g.beginPath();
+    g.arc(x, y, 10, 0, Math.PI * 2);
+    g.fillStyle = stroke.color;
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = "rgba(0, 0, 0, 0.55)";
+    g.stroke();
+    g.fillStyle = stroke.color === "#ffffff" ? "#102018" : "#1c1402";
+    g.font = "700 12px sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(String(stroke.step), x, y + 0.5);
+    g.restore();
   }
 
   function trimEnd(points, distance) {
@@ -749,6 +800,16 @@
       moveBtn.classList.toggle("is-active", on);
       moveBtn.setAttribute("aria-pressed", on ? "true" : "false");
     }
+    const sameBtn = document.getElementById("same-time");
+    if (sameBtn) {
+      sameBtn.classList.toggle("is-active", sameTime);
+      sameBtn.setAttribute("aria-pressed", sameTime ? "true" : "false");
+    }
+    const slowBtn = document.getElementById("slow-play");
+    if (slowBtn) {
+      slowBtn.classList.toggle("is-active", slowPlay);
+      slowBtn.setAttribute("aria-pressed", slowPlay ? "true" : "false");
+    }
     syncPlayButton();
   }
 
@@ -765,7 +826,7 @@
     playing = false;
     paused = false;
     playClock = 0;
-    routes = [];
+    routes = null;
     origins = null;
     if (animFrame) {
       window.cancelAnimationFrame(animFrame);
@@ -818,9 +879,10 @@
   }
 
   function buildRoutes() {
-    const groups = new Map();
     const players = pieces.filter((piece) => piece.team !== "ball");
     const ball = pieces.find((piece) => piece.team === "ball");
+    const speed = slowPlay ? 0.22 : 0.42;
+    const items = [];
     strokes.filter((stroke) => stroke !== currentStroke && stroke.points.length >= 2).forEach((stroke) => {
       const start = stroke.points[0];
       const pass = stroke.color === "#ffffff";
@@ -831,35 +893,28 @@
         target = nearestPiece(players, start, 0.36);
       }
       if (!target) return;
-      if (!groups.has(target)) groups.set(target, []);
-      groups.get(target).push(stroke);
-    });
-    return [...groups.entries()].map(([piece, list]) => {
-      const segments = list.map((stroke) => {
-        const length = routeLength(stroke.points);
-        return { points: stroke.points, length, duration: Math.max(0.4, length / 0.42) };
+      const length = routeLength(stroke.points);
+      items.push({
+        piece: target,
+        points: stroke.points,
+        step: stroke.step || 1,
+        length,
+        duration: Math.max(slowPlay ? 0.75 : 0.4, length / speed)
       });
-      return {
-        piece,
-        segments,
-        total: segments.reduce((sum, segment) => sum + segment.duration, 0)
-      };
     });
-  }
-
-  function positionOnRoute(route, time) {
-    let remain = time;
-    for (let i = 0; i < route.segments.length; i += 1) {
-      const segment = route.segments[i];
-      if (remain > segment.duration && i < route.segments.length - 1) {
-        remain -= segment.duration;
-        continue;
-      }
-      const distance = segment.length * (Math.min(remain, segment.duration) / segment.duration);
-      return pointAlong(segment.points, distance);
-    }
-    const last = route.segments[route.segments.length - 1].points;
-    return last[last.length - 1];
+    if (!items.length) return null;
+    const steps = [...new Set(items.map((item) => item.step))].sort((a, b) => a - b);
+    const gap = slowPlay ? 0.32 : 0.18;
+    let cursor = 0;
+    const schedule = steps.map((step, index) => {
+      const group = items.filter((item) => item.step === step);
+      const duration = Math.max(...group.map((item) => item.duration));
+      const entry = { step, items: group, start: cursor, duration };
+      cursor += duration;
+      if (index < steps.length - 1) cursor += gap;
+      return entry;
+    });
+    return { schedule, total: cursor };
   }
 
   function captureOrigins() {
@@ -894,7 +949,7 @@
     if (!paused) {
       if (origins) restoreOrigins();
       routes = buildRoutes();
-      if (!routes.length) {
+      if (!routes) {
         flash("請由球員或足球旁邊開始畫線");
         return;
       }
@@ -904,25 +959,34 @@
     playing = true;
     paused = false;
     lastTick = performance.now();
-    routes.forEach((route) => route.piece.el.classList.add("is-animating"));
+    routes.schedule.forEach((group) => {
+      group.items.forEach((item) => item.piece.el.classList.add("is-animating"));
+    });
     syncPlayButton();
-    flash("播放路線");
+    statusEl.textContent = `第 ${routes.schedule[0].step} 步`;
     animFrame = window.requestAnimationFrame(playFrame);
   }
 
   function playFrame(now) {
-    if (!playing) return;
+    if (!playing || !routes) return;
     const step = Math.min(0.05, (now - lastTick) / 1000);
     lastTick = now;
     playClock += step;
-    let finished = true;
-    routes.forEach((route) => {
-      if (playClock < route.total) finished = false;
-      const spot = positionOnRoute(route, Math.min(playClock, route.total));
-      route.piece.u = spot.u;
-      route.piece.v = spot.v;
-      place(route.piece);
+    const finished = playClock >= routes.total;
+    let shown = routes.schedule[0].step;
+    routes.schedule.forEach((group) => {
+      if (playClock < group.start) return;
+      shown = group.step;
+      const local = Math.min(playClock - group.start, group.duration);
+      group.items.forEach((item) => {
+        const progress = Math.min(1, local / item.duration);
+        const spot = pointAlong(item.points, item.length * progress);
+        item.piece.u = spot.u;
+        item.piece.v = spot.v;
+        place(item.piece);
+      });
     });
+    if (!finished) statusEl.textContent = `第 ${shown} 步`;
     if (finished) {
       playing = false;
       paused = false;
@@ -970,10 +1034,22 @@
           color: typeof stroke.color === "string" ? stroke.color : "#ffe14a",
           dashed: !!stroke.dashed,
           arrow: !!stroke.arrow,
+          step: Number.isInteger(stroke.step) && stroke.step > 0 ? stroke.step : 0,
           points: stroke.points.filter((point) => Number.isFinite(point.u) && Number.isFinite(point.v))
         })).filter((stroke) => stroke.points.length);
+        let next = 1;
+        strokes.forEach((stroke) => {
+          if (stroke.step) {
+            next = stroke.step + 1;
+            return;
+          }
+          stroke.step = next;
+          next += 1;
+        });
       }
       if (typeof data.panelOpen === "boolean") panelOpen = data.panelOpen;
+      if (typeof data.sameTime === "boolean") sameTime = data.sameTime;
+      if (typeof data.slowPlay === "boolean") slowPlay = data.slowPlay;
       if (Array.isArray(data.origins)) {
         const next = {};
         data.origins.forEach((saved) => {
@@ -993,6 +1069,8 @@
       const data = {
         formations: { red: formation.red, blue: formation.blue },
         panelOpen,
+        sameTime,
+        slowPlay,
         origins: origins ? pieces.filter((piece) => origins[piece.id]).map((piece) => ({
           id: piece.id,
           u: round4(origins[piece.id].u),
@@ -1003,6 +1081,7 @@
           color: stroke.color,
           dashed: !!stroke.dashed,
           arrow: !!stroke.arrow,
+          step: stroke.step || 1,
           points: stroke.points.map((point) => ({ u: round4(point.u), v: round4(point.v) }))
         }))
       };
